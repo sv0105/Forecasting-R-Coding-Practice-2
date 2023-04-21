@@ -1,0 +1,79 @@
+
+#Loading excel and forecast packages
+library(readxl)
+library(forecast)
+
+#importing excel file
+Net_Exports_India <- read_excel("C:/Users/Veere/Downloads/Net Exports India.xlsx")
+
+#timeseries creation
+tradebalance.ts <- ts(Net_Exports_India$NX, start = c(1990,1), end = c(2022,12), freq = 12)
+tradebalance.lm <- tslm(tradebalance.ts ~ trend + I(trend^2))
+
+#Figure 2.4 from text book
+par(mfrow = c(2,1))
+plot(tradebalance.ts, xlab = "Date", ylab = "NX", ylim = c(min(Net_Exports_India$NX), max(Net_Exports_India$NX)), bty = "l")
+lines(tradebalance.lm$fitted, lwd =2)
+tradebalance.ts.zoom <- window(tradebalance.ts, start = = c(2018, 1), end = c(2022, 12))
+plot(tradebalance.ts.zoom, xlab = "Date", ylab = "NX", ylim = c(min(Net_Exports_India$NX), max(Net_Exports_India$NX)), bty = "l")
+
+#package for summary stats
+install.packages("pastecs")
+library(pastecs)
+
+summary_stats <- stat.desc(Net_Exports_India)
+
+print(summary_stats)
+DATA PLOTS
+
+# Raw data
+par(mar = c(1, 1, 1, 1))
+plot(tradebalance.ts, type = 'l', xlab = 'Date', ylab = 'IDR',
+     main = 'NX History', lty = 1, lwd = 2, col = 'red')
+
+
+# PARTITIONING
+library(forecast)
+nValid <- 60 # This is a 5-year training period
+nTrain <- length(tradebalance.ts) - nValid
+train.ts <- window(tradebalance.ts, start = c(1990, 2), end = c(1990, nTrain))
+valid.ts <- window(tradebalance.ts, start = c(1990, nTrain + 1), end = c(1990, nTrain + nValid))
+spot.lm <-  tslm(train.ts ~ trend + I(trend^2))
+spot.lm.pred <- forecast(spot.lm, h = nValid, level = 95)
+
+# RECREATE FIG. 3.2 FOR TRADE BALANCE DATA
+plot(spot.lm.pred, ylim = c(-2500, 0),  ylab = "Trade Balance", xlab = 'Date',
+     bty = "l", lwd = 2, xaxt = "n",
+     xlim = c(1990,2028), main = "NX In-sample Forecast", flty = 2)
+axis(1, at = seq(1990, 2030, 8), labels = format(seq(1990, 2030, 8))) 
+lines(spot.lm$fitted, lwd = 2, col = 'cyan3')
+lines(valid.ts, lwd = 2)
+lines(c(2023 - nValid/12, 2023 - nValid/12), c(-2500, 0)) 
+lines(c(2023, 2023), c(-2500, 0))
+text(1995, -1000, "Training")
+text(2021.67 - nValid/12/2, -1600, "Validation")
+text(2022.67 + 3, -2100, "Future")
+arrows(1990, -1000-100, 2023 - nValid/12, -1000-100, code = 3, length = 0.1, lwd = 1,angle = 25)
+arrows(2023 - nValid/12, -1600-100, 2023, -1600-100, code = 3, length = 0.1, lwd = 1,angle = 25)
+arrows(2023, -2100-100, 2023 + nValid/12, -2100-100, code = 3, length = 0.1, lwd = 1,angle = 25)
+
+# NAIVE FORECASTING
+spot.naive <- naive(train.ts, h = nValid)
+plot(spot.naive, ylim = c(-1500,0), ylab = "NX", xlab = "Date", 
+     bty = "l", lwd = 2, xaxt = "n", main = "Naive Spot Rate Forecast", flty = 2)
+axis(1, at = seq(1990, 2030, 1), labels = format(seq(1990, 2030, 1))) 
+lines(spot.naive, lwd = 2, col = 'cyan3', lty = 2)
+
+# QUADRATIC FORECASTING
+
+# FORECAST ERROR PLOTS
+spot.naive.ferrors = valid.ts - spot.naive$mean
+spot.quad.ferrors = valid.ts - spot.lm.pred$mean
+par(mfrow = c(2,1))
+plot(spot.naive.ferrors, ylab = "", xlab = "Date", lwd = 2, main = "Naive Forecast Errors")
+plot(spot.quad.ferrors, ylab = "", xlab = "Date", lwd = 2, main = "Quadratic Forecast Errors")
+
+# DIAGNOSTICS
+accuracy(spot.naive$mean, valid.ts)
+accuracy(spot.lm.pred$mean, valid.ts) 
+stat.desc(Net_Exports_India)
